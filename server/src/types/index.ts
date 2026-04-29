@@ -15,4 +15,8 @@ export interface Institution {
   createdAt: string;
 }
 
-// Document, ProcessLog, Analysis, ProcessLogShare interfaces added in Phase 5+
+export interface ProcessLogEvent {
+  type: 'insert' | 'delete' | 'paste' | 'cursor' | 'pause' | 'selection' | string;
+  timestamp: number;
+  data?: Record<string, unknown>;
+}
