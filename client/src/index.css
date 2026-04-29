@@ -2,8 +2,130 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #1a1c1b;
+  background-color: #faf9f7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #f8fafc;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #faf9f7;
+  color: #1a1c1b;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+/* Google Material Symbols */
+.material-symbols-outlined {
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
+  display: inline-block;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+/* Shared Stitch utilities */
+.editorial-shadow {
+  box-shadow: 0 4px 20px rgba(26, 26, 26, 0.04);
+}
+
+.segmented-control-active {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.editor-canvas {
+  height: calc(100vh - 180px);
+}
+
+/* Scrollbars */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #faf9f6;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e8e4dc;
+  border-radius: 10px;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Student report issue cards */
+.issue-card-severity {
+  width: 4px;
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.circular-progress {
+  background:
+    radial-gradient(closest-side, #faf9f6 85%, transparent 86% 100%),
+    conic-gradient(#1f3a2e 88%, #e8e4dc 0);
+}
+
+/* AI detection detail */
+.severity-low {
+  border-left: 4px solid #86a494;
+}
+
+.severity-med {
+  border-left: 4px solid #525d80;
+}
+
+.severity-high {
+  border-left: 4px solid #ba1a1a;
+}
+
+/* Writing process replay */
+.amber-highlight {
+  background-color: #fef3c7;
+  border-bottom: 2px solid #f59e0b;
+}
+
+/* Settings toggle */
+.toggle-checkbox {
+  right: 1rem;
+  transition: all 0.3s ease;
+}
+
+.toggle-checkbox:checked {
+  right: 0;
+  border-color: #1f3a2e;
+}
+
+.toggle-checkbox:checked + .toggle-label {
+  background-color: #1f3a2e;
 }
