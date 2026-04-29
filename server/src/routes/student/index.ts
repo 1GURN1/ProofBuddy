@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { supabaseAdmin } from '../../config/supabase';
 import { requireAuth, requireRole } from '../../middleware/auth';
+import { ProcessLogEvent } from '../../types';
 
 const router = Router();
 
@@ -231,5 +232,105 @@ router.post('/documents/:id/versions', async (req: Request, res: Response): Prom
     res.status(500).json({ error: 'Failed to create version.' });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Process Log
+// ---------------------------------------------------------------------------
+
+// POST /api/student/documents/:id/process-log/events
+// Client batches and sends every 10 seconds or 50 events (whichever comes first).
+// Atomically appended via Postgres function — no fetch-then-update race.
+router.post(
+  '/documents/:id/process-log/events',
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { data: doc, error: fetchError } = await getOwnedDocument(
+        req.params.id,
+        req.user!.id
+      );
+
+      if (fetchError) throw fetchError;
+      if (!doc) {
+        res.status(404).json({ error: 'Document not found.' });
+        return;
+      }
+
+      const { events } = req.body;
+
+      if (!Array.isArray(events)) {
+        res.status(400).json({ error: 'events must be an array.' });
+        return;
+      }
+
+      if (events.length === 0) {
+        res.json({ success: true, eventCount: 0 });
+        return;
+      }
+
+      if (events.length > 100) {
+        res.status(400).json({ error: 'Maximum 100 events per batch.' });
+        return;
+      }
+
+      // Validate each event has the minimum required fields
+      for (const event of events as ProcessLogEvent[]) {
+        if (typeof event.type !== 'string' || typeof event.timestamp !== 'number') {
+          res.status(400).json({ error: 'Each event must have type (string) and timestamp (number).' });
+          return;
+        }
+      }
+
+      const { error } = await supabaseAdmin.rpc('append_process_log_events', {
+        p_document_id: doc.id,
+        p_events: JSON.stringify(events),
+      });
+
+      if (error) throw error;
+      res.json({ success: true, eventCount: events.length });
+    } catch (err) {
+      console.error('Process log ingest error:', err);
+      res.status(500).json({ error: 'Failed to store process log events.' });
+    }
+  }
+);
+
+// GET /api/student/documents/:id/process-log
+// Returns the full event array for the replay viewer.
+// Events can be large (10k–25k for a full essay) — intentional per spec.
+router.get(
+  '/documents/:id/process-log',
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { data: doc, error: fetchError } = await getOwnedDocument(
+        req.params.id,
+        req.user!.id
+      );
+
+      if (fetchError) throw fetchError;
+      if (!doc) {
+        res.status(404).json({ error: 'Document not found.' });
+        return;
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from('process_logs')
+        .select('id, document_id, events, created_at, updated_at')
+        .eq('document_id', doc.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        res.json({ processLog: null });
+        return;
+      }
+
+      res.json({ processLog: data });
+    } catch (err) {
+      console.error('Get process log error:', err);
+      res.status(500).json({ error: 'Failed to fetch process log.' });
+    }
+  }
+);
 
 export default router;
