@@ -186,4 +186,54 @@ router.get('/me', requireAuth, async (req: Request, res: Response): Promise<void
   }
 });
 
+// PATCH /api/auth/me
+// Educators: correct the auto-derived institution name after signup.
+// Extensible — add more updatable fields here as the product grows.
+router.patch('/me', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { institutionName } = req.body;
+
+    if (req.user!.role === 'educator' && institutionName !== undefined) {
+      if (typeof institutionName !== 'string' || !institutionName.trim()) {
+        res.status(400).json({ error: 'institutionName must be a non-empty string.' });
+        return;
+      }
+
+      // Get the user's institution_id
+      const { data: userRow } = await supabaseAdmin
+        .from('users')
+        .select('institution_id')
+        .eq('id', req.user!.id)
+        .single();
+
+      if (!userRow?.institution_id) {
+        res.status(400).json({ error: 'No institution linked to this account.' });
+        return;
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('institutions')
+        .update({ name: institutionName.trim() })
+        .eq('id', userRow.institution_id);
+
+      if (updateError) {
+        res.status(500).json({ error: 'Failed to update institution name.' });
+        return;
+      }
+    }
+
+    // Return the updated profile
+    const { data: profile } = await supabaseAdmin
+      .from('users')
+      .select('id, email, role, institution_id, created_at, institutions(id, domain, name)')
+      .eq('id', req.user!.id)
+      .single();
+
+    res.json({ user: profile });
+  } catch (err) {
+    console.error('Profile update error:', err);
+    res.status(500).json({ error: 'Failed to update profile.' });
+  }
+});
+
 export default router;
