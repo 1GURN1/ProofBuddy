@@ -204,6 +204,29 @@ interface HolisticResult {
 }
 
 // ---------------------------------------------------------------------------
+// Usage limits
+// ---------------------------------------------------------------------------
+
+const MONTHLY_LIMIT: Record<string, number> = {
+  free: 3,
+  student: Infinity,
+};
+
+function startOfCurrentMonth(): Date {
+  const d = new Date();
+  d.setUTCDate(1);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+function startOfNextMonth(): Date {
+  const d = new Date();
+  d.setUTCMonth(d.getUTCMonth() + 1, 1);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+// ---------------------------------------------------------------------------
 // Route
 // ---------------------------------------------------------------------------
 
@@ -214,6 +237,37 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     if (!content || typeof content !== 'string' || !content.trim()) {
       res.status(400).json({ error: 'content is required.' });
       return;
+    }
+
+    // --- Free-tier enforcement (full document mode only) ---
+    if (documentId) {
+      const { data: profile } = await supabaseAdmin
+        .from('users')
+        .select('tier')
+        .eq('id', req.user!.id)
+        .single();
+
+      const tier = profile?.tier ?? 'free';
+      const limit = MONTHLY_LIMIT[tier] ?? 3;
+
+      if (isFinite(limit)) {
+        const { count } = await supabaseAdmin
+          .from('usage_tracking')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', req.user!.id)
+          .eq('analysis_type', 'student')
+          .gte('created_at', startOfCurrentMonth().toISOString());
+
+        if ((count ?? 0) >= limit) {
+          res.status(429).json({
+            error: 'Monthly analysis limit reached.',
+            limit,
+            used: count ?? 0,
+            resetAt: startOfNextMonth().toISOString(),
+          });
+          return;
+        }
+      }
     }
 
     // In full document mode, verify the document belongs to this user

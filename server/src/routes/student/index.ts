@@ -12,6 +12,35 @@ router.use(requireAuth, requireRole('student'));
 router.use('/analyze', analyzeRouter);
 router.use('/process-log-requests', shareRequestsRouter);
 
+// GET /api/student/usage — current month analysis count + limit
+router.get('/usage', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+
+    const [profileResult, countResult] = await Promise.all([
+      supabaseAdmin.from('users').select('tier').eq('id', req.user!.id).single(),
+      supabaseAdmin
+        .from('usage_tracking')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', req.user!.id)
+        .eq('analysis_type', 'student')
+        .gte('created_at', monthStart.toISOString())
+        .lt('created_at', monthEnd.toISOString()),
+    ]);
+
+    const tier = profileResult.data?.tier ?? 'free';
+    const used = countResult.count ?? 0;
+    const limit = tier === 'student' ? null : 3; // null = unlimited
+
+    res.json({ tier, used, limit, resetAt: monthEnd.toISOString() });
+  } catch (err) {
+    console.error('Usage error:', err);
+    res.status(500).json({ error: 'Failed to fetch usage.' });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
