@@ -4,6 +4,7 @@ import { errorHandler } from './middleware/error';
 import authRoutes from './routes/auth';
 import studentRoutes from './routes/student';
 import educatorRoutes from './routes/educator';
+import shareRoutes from './routes/share';
 
 export function createApp() {
   const app = express();
@@ -18,6 +19,7 @@ export function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/student', studentRoutes);
   app.use('/api/educator', educatorRoutes);
+  app.use('/api/share', shareRoutes);
 
   app.use(errorHandler);
 

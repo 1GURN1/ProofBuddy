@@ -3,12 +3,14 @@ import { supabaseAdmin } from '../../config/supabase';
 import { requireAuth, requireRole } from '../../middleware/auth';
 import { ProcessLogEvent } from '../../types';
 import analyzeRouter from './analyze';
+import shareRequestsRouter from './share-requests';
 
 const router = Router();
 
 router.use(requireAuth, requireRole('student'));
 
 router.use('/analyze', analyzeRouter);
+router.use('/process-log-requests', shareRequestsRouter);
 
 // ---------------------------------------------------------------------------
 // Helpers
