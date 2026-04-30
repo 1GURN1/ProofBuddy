@@ -2,12 +2,144 @@ import { useState } from "react";
 import axios from "axios";
 import "./index.css";
 
-const API_URL = "http://localhost:5000/api/analyze";
+const BASE_URL = "http://localhost:3001";
 
 function App() {
+  const [token, setToken] = useState(null);
+  const [userEmail, setUserEmail] = useState("");
+
+  if (!token) {
+    return <LoginPage onLogin={(t, email) => { setToken(t); setUserEmail(email); }} />;
+  }
+
+  return <AnalyzePage token={token} userEmail={userEmail} onLogout={() => setToken(null)} />;
+}
+
+// ---------------------------------------------------------------------------
+// Login Page
+// ---------------------------------------------------------------------------
+
+function LoginPage({ onLogin }) {
+  const [mode, setMode] = useState("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [institution, setInstitution] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const endpoint = mode === "signin" ? "/api/auth/signin" : "/api/auth/signup";
+      const body = mode === "signin"
+        ? { email, password }
+        : { email, password, role: "educator", institutionName: institution };
+
+      const res = await axios.post(`${BASE_URL}${endpoint}`, body);
+      onLogin(res.data.session.accessToken, email);
+    } catch (err) {
+      setError(err.response?.data?.error || "Authentication failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold tracking-tight">ProofBuddy</h1>
+          <p className="mt-2 text-sm text-slate-500">AI academic integrity assistant for educators</p>
+        </div>
+
+        <div className="rounded-2xl bg-white p-8 shadow-sm border">
+          <div className="mb-6 flex rounded-xl border p-1">
+            <button
+              type="button"
+              onClick={() => setMode("signin")}
+              className={`flex-1 rounded-lg py-2 text-sm font-medium transition ${mode === "signin" ? "bg-blue-600 text-white" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("signup")}
+              className={`flex-1 rounded-lg py-2 text-sm font-medium transition ${mode === "signup" ? "bg-blue-600 text-white" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">Institutional Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@university.edu"
+                required
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            {mode === "signup" && (
+              <div>
+                <label className="mb-1 block text-sm font-medium">Institution Name</label>
+                <input
+                  type="text"
+                  value={institution}
+                  onChange={(e) => setInstitution(e.target.value)}
+                  placeholder="University of Waterloo"
+                  required
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+            >
+              {loading ? "Loading..." : mode === "signin" ? "Sign In" : "Create Educator Account"}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Analyze Page
+// ---------------------------------------------------------------------------
+
+function AnalyzePage({ token, userEmail, onLogout }) {
   const [formData, setFormData] = useState({
     assignmentPrompt: "",
-    studentSubmission: "",
+    submissionText: "",
     previousSample: "",
     aiPolicy: "AI allowed with disclosure",
     rubric: "",
@@ -19,11 +151,7 @@ function App() {
 
   function handleChange(event) {
     const { name, value } = event.target;
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   }
 
   async function handleAnalyze(event) {
@@ -33,10 +161,17 @@ function App() {
     setReport(null);
 
     try {
-      const response = await axios.post(API_URL, formData);
-      setReport(response.data);
+      const response = await axios.post(
+        `${BASE_URL}/api/educator/analyze-submission`,
+        formData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setReport(response.data.report);
     } catch (err) {
-      console.error(err);
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        onLogout();
+        return;
+      }
       setError(
         err.response?.data?.error ||
           "Unable to analyze the submission. Please check that the backend is running."
@@ -57,9 +192,20 @@ function App() {
             </p>
           </div>
 
-          <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
-            Hackathon MVP
-          </span>
+          <div className="flex items-center gap-4">
+            <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
+              Hackathon MVP
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-500">{userEmail}</span>
+              <button
+                onClick={onLogout}
+                className="text-sm text-slate-400 hover:text-slate-700 underline"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -85,8 +231,8 @@ function App() {
 
             <TextArea
               label="Student Submission"
-              name="studentSubmission"
-              value={formData.studentSubmission}
+              name="submissionText"
+              value={formData.submissionText}
               onChange={handleChange}
               placeholder="Paste the student's written work here..."
               required
@@ -164,6 +310,10 @@ function App() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Shared UI components
+// ---------------------------------------------------------------------------
+
 function TextArea({ label, name, value, onChange, placeholder, required }) {
   return (
     <div>
@@ -200,6 +350,10 @@ function EmptyReport() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Report Dashboard — updated for new API response shape
+// ---------------------------------------------------------------------------
+
 function ReportDashboard({ report }) {
   return (
     <div>
@@ -211,68 +365,89 @@ function ReportDashboard({ report }) {
           </p>
         </div>
 
-        <span className={getReviewBadgeClass(report.reviewLevel)}>
-          {report.reviewLevel} Review
+        <span className={getAttentionBadgeClass(report.attentionLevel)}>
+          {formatAttentionLevel(report.attentionLevel)}
         </span>
       </div>
 
-      <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-        <strong>Important:</strong> ProofBuddy does not determine whether a student cheated.
-        It highlights review signals and fair follow-up steps.
-      </div>
+      {report.disclaimer && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <strong>Important:</strong> {report.disclaimer}
+        </div>
+      )}
 
       {report.metrics && <MetricsCard metrics={report.metrics} />}
 
       <ReportSection title="Summary" items={[report.summary]} />
       <ReportSection title="Prompt Alignment" items={report.promptAlignment} />
       <ReportSection title="Writing Consistency" items={report.writingConsistency} />
-      <ReportSection title="Citation Audit" items={report.citationAudit} />
-      <ReportSection
-        title="Possible AI-Assistance Signals"
-        items={report.possibleAiAssistanceSignals}
-      />
-      <ReportSection
-        title="Alternative Explanations"
-        items={report.alternativeExplanations}
-      />
-      <ReportSection
-        title="Suggested Follow-Up Questions"
-        items={report.followUpQuestions}
-      />
-      <ReportSection
-        title="Recommended Next Steps"
-        items={report.recommendedNextSteps}
-      />
+
+      {report.possibleSignals && report.possibleSignals.length > 0 && (
+        <SignalsSection signals={report.possibleSignals} />
+      )}
+
+      <ReportSection title="Suggested Follow-Up Questions" items={report.followUpQuestions} />
+      <ReportSection title="Recommended Next Steps" items={report.recommendedNextSteps} />
+    </div>
+  );
+}
+
+function SignalsSection({ signals }) {
+  return (
+    <div className="mb-5 rounded-xl border bg-white p-4">
+      <h3 className="mb-3 font-semibold">Possible Signals</h3>
+      <div className="space-y-4">
+        {signals.map((s, i) => (
+          <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="text-sm font-medium text-slate-800">{s.observation}</p>
+            {s.alternativeExplanations?.length > 0 && (
+              <div className="mt-2">
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Alternative Explanations</p>
+                <ul className="space-y-1">
+                  {s.alternativeExplanations.map((exp, j) => (
+                    <li key={j} className="flex gap-2 text-sm text-slate-600">
+                      <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-400"></span>
+                      <span>{exp}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 function MetricsCard({ metrics }) {
-  const current = metrics.current;
-  const previous = metrics.previous;
+  const current = metrics.current?.metrics;
+  const previous = metrics.previous?.metrics;
   const comparison = metrics.comparison;
+
+  if (!current) return null;
 
   return (
     <div className="mb-5 rounded-xl border bg-slate-50 p-4">
       <h3 className="mb-3 font-semibold">Writing Metrics</h3>
 
       <div className="grid grid-cols-2 gap-3 text-sm">
-        <Metric label="Current Word Count" value={current.wordCount} />
-        <Metric label="Current Avg. Sentence" value={`${current.averageSentenceLength} words`} />
-        <Metric label="Current Lexical Diversity" value={current.lexicalDiversity} />
-        <Metric label="Current Avg. Word Length" value={`${current.averageWordLength} chars`} />
+        <Metric label="Word Count" value={current.wordCount} />
+        <Metric label="Avg. Sentence Length" value={`${current.averageSentenceLength} words`} />
+        <Metric label="Lexical Diversity" value={current.lexicalDiversity} />
+        <Metric label="Avg. Word Length" value={`${current.averageWordLength} chars`} />
 
-        {previous.wordCount > 0 && (
+        {previous && previous.wordCount > 0 && comparison && (
           <>
-            <Metric label="Previous Word Count" value={previous.wordCount} />
-            <Metric label="Previous Avg. Sentence" value={`${previous.averageSentenceLength} words`} />
+            <Metric label="Prev. Word Count" value={previous.wordCount} />
+            <Metric label="Prev. Avg. Sentence" value={`${previous.averageSentenceLength} words`} />
             <Metric
               label="Sentence Length Change"
-              value={`${comparison.averageSentenceLengthChange} words`}
+              value={`${comparison.averageSentenceLengthChange > 0 ? "+" : ""}${comparison.averageSentenceLengthChange} words`}
             />
             <Metric
               label="Lexical Diversity Change"
-              value={comparison.lexicalDiversityChange}
+              value={`${comparison.lexicalDiversityChange > 0 ? "+" : ""}${comparison.lexicalDiversityChange}`}
             />
           </>
         )}
@@ -291,11 +466,12 @@ function Metric({ label, value }) {
 }
 
 function ReportSection({ title, items }) {
+  if (!items || items.length === 0) return null;
   return (
     <div className="mb-5 rounded-xl border bg-white p-4">
       <h3 className="mb-3 font-semibold">{title}</h3>
       <ul className="space-y-2">
-        {items?.map((item, index) => (
+        {items.map((item, index) => (
           <li key={index} className="flex gap-2 text-sm text-slate-700">
             <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500"></span>
             <span>{item}</span>
@@ -306,17 +482,16 @@ function ReportSection({ title, items }) {
   );
 }
 
-function getReviewBadgeClass(level) {
+function formatAttentionLevel(level) {
+  if (level === "several_signals") return "Several Signals";
+  if (level === "some_signals") return "Some Signals";
+  return "Routine";
+}
+
+function getAttentionBadgeClass(level) {
   const base = "rounded-full px-4 py-2 text-sm font-semibold whitespace-nowrap ";
-
-  if (level === "High") {
-    return base + "bg-red-50 text-red-700";
-  }
-
-  if (level === "Medium") {
-    return base + "bg-amber-50 text-amber-700";
-  }
-
+  if (level === "several_signals") return base + "bg-red-50 text-red-700";
+  if (level === "some_signals") return base + "bg-amber-50 text-amber-700";
   return base + "bg-green-50 text-green-700";
 }
 
