@@ -249,9 +249,12 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       analyzedAt: new Date().toISOString(),
     };
 
+  const userId = req.user?.id ?? null;
+
+  if (userId) {
     await Promise.all([
       supabaseAdmin.from('educator_reviews').insert({
-        user_id: req.user!.id,
+        user_id: userId,
         assignment_prompt: assignmentPrompt,
         submission_text: submissionText,
         previous_sample: hasPrevious ? previousSample : null,
@@ -261,10 +264,11 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
         attention_level: geminiResult.attentionLevel,
       }),
       supabaseAdmin.from('usage_tracking').insert({
-        user_id: req.user!.id,
+        user_id: userId,
         analysis_type: 'educator',
       }),
     ]);
+  }
 
     res.json({ report });
   } catch (err) {

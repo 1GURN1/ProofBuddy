@@ -4,7 +4,8 @@ import analyzeRouter from './analyze';
 
 const router = Router();
 
-router.use(requireAuth, requireRole('educator'));
+// note: we will likely want to add auth and role checks here in the future since just for hackathon
+// router.use(requireAuth, requireRole('educator'));
 
 router.use('/analyze-submission', analyzeRouter);
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/analyze";
+const API_URL = "http://localhost:5000/api/educator/analyze-submission";
 
 export default function EducatorSubmissionIntake() {
   const [formData, setFormData] = useState({
@@ -47,7 +47,7 @@ export default function EducatorSubmissionIntake() {
     try {
       const response = await axios.post(API_URL, {
         assignmentPrompt: formData.assignmentPrompt,
-        studentSubmission: formData.studentSubmission,
+        submissionText: formData.studentSubmission,
         previousSample: formData.previousSample,
         aiPolicy: formData.aiPolicy,
         rubric: formData.rubric,
