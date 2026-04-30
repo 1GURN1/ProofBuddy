@@ -249,7 +249,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       analyzedAt: new Date().toISOString(),
     };
 
-    await Promise.all([
+    const [reviewResult] = await Promise.all([
       supabaseAdmin.from('educator_reviews').insert({
         user_id: req.user!.id,
         assignment_prompt: assignmentPrompt,
@@ -259,14 +259,14 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
         rubric: rubric ?? null,
         report,
         attention_level: geminiResult.attentionLevel,
-      }),
+      }).select('id').single(),
       supabaseAdmin.from('usage_tracking').insert({
         user_id: req.user!.id,
         analysis_type: 'educator',
       }),
     ]);
 
-    res.json({ report });
+    res.json({ report, educatorReviewId: reviewResult.data?.id ?? null });
   } catch (err) {
     console.error('Educator analyze error:', err);
     res.status(500).json({ error: 'Analysis failed.' });

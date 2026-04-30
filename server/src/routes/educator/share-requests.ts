@@ -9,8 +9,8 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
   try {
     const { educatorReviewId, studentEmail, expiresInDays = 30 } = req.body;
 
-    if (!educatorReviewId) {
-      res.status(400).json({ error: 'educatorReviewId is required.' });
+    if (!educatorReviewId || !studentEmail || typeof studentEmail !== 'string' || !studentEmail.trim()) {
+      res.status(400).json({ error: 'educatorReviewId and studentEmail are required.' });
       return;
     }
 
@@ -35,7 +35,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       .insert({
         educator_review_id: educatorReviewId,
         requester_id: req.user!.id,
-        student_email: studentEmail ?? null,
+        student_email: studentEmail.trim().toLowerCase(),
         expires_at: expiresAt.toISOString(),
       })
       .select('id, token, status, student_email, expires_at, created_at')

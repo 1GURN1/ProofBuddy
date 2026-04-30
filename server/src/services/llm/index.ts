@@ -14,7 +14,13 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { env } from '../../config/env';
 
-const MODEL = 'gemini-2.5-flash';
+const MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-001',
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash-lite',
+];
 
 function getClient(): GoogleGenerativeAI {
   if (!env.geminiApiKey) {
@@ -79,23 +85,41 @@ export async function analyzeWithLLM<T>(options: {
   schema: object;
 }): Promise<T> {
   const genAI = getClient();
+  let lastError: unknown;
 
-  const model = genAI.getGenerativeModel({
-    model: MODEL,
-    systemInstruction: options.systemPrompt,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      responseSchema: options.schema as any,
-    },
-  });
+  for (const modelName of MODELS) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: options.systemPrompt,
+        generationConfig: {
+          responseMimeType: 'application/json',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          responseSchema: options.schema as any,
+        },
+      });
 
-  const result = await model.generateContent(options.userPrompt);
-  const text = result.response.text();
+      const result = await model.generateContent(options.userPrompt);
+      const text = result.response.text();
 
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new Error(`Gemini returned invalid JSON: ${text.slice(0, 200)}`);
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        throw new Error(`Gemini returned invalid JSON: ${text.slice(0, 200)}`);
+      }
+    } catch (err: unknown) {
+      const status = (err as { status?: number }).status;
+      // Only fall through to the next model on 503/429 (capacity/rate errors)
+      if (status === 503 || status === 429) {
+        console.warn(`[LLM] ${modelName} unavailable (${status}), trying next model…`);
+        lastError = err;
+        // Brief pause before trying next model to avoid immediate rate-limit cascade
+        await new Promise((r) => setTimeout(r, 1500));
+        continue;
+      }
+      throw err;
+    }
   }
+
+  throw lastError;
 }

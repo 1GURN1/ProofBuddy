@@ -208,7 +208,7 @@ interface HolisticResult {
 // ---------------------------------------------------------------------------
 
 const MONTHLY_LIMIT: Record<string, number> = {
-  free: 3,
+  free: Infinity,
   student: Infinity,
 };
 

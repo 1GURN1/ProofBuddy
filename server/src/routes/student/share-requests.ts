@@ -157,6 +157,11 @@ router.post('/:shareId/decline', async (req: Request, res: Response): Promise<vo
       return;
     }
 
+    if (share.student_id && share.student_id !== req.user!.id) {
+      res.status(403).json({ error: 'This link was not sent to your account.' });
+      return;
+    }
+
     if (share.status !== 'pending') {
       res.status(409).json({ error: `Share request is already ${share.status}.` });
       return;
